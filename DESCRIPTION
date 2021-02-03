@@ -1,0 +1,21 @@
+Package: SimulationEvaluationHte
+Title: What the Package Does (One Line, Title Case)
+Version: 0.0.0.9000
+Authors@R: 
+    person(given = "Alexandros",
+           family = "Rekkas",
+           role = c("aut", "cre"),
+           email = "a.rekkas@erasmusmc.nl",
+           comment = c(ORCID = "YOUR-ORCID-ID"))
+Description: [Under Development] An R-package designed for fitting smooth
+             estimates of absolute treatment benefit.
+License: GPL (>= 3)
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.1
+Depends:
+    SmoothHte,
+    SimulateHte
+Imports:
+    dplyr
