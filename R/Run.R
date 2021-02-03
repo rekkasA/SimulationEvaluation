@@ -26,8 +26,7 @@ runSimulation <- function(
         newdata = simulatedDataset %>%
           dplyr::mutate(treatment = 0)
       )
-    ) %>%
-    dplyr::select(-propensityLinearPredictor)
+    )
 
   simulatedDataset0 <- simulatedDataset %>%
     dplyr::filter(treatment == 0)
