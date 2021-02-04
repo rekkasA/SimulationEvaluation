@@ -20,5 +20,5 @@ Depends:
 Imports:
     dplyr
 Remotes:
-    rekkasA/SmoothHte
-    rekkasA/SimulateHte
+    rekkasA/SmoothHte,
+    rekkasA/SimulateHte,
