@@ -1,39 +1,14 @@
+#' @importFrom dplyr %>%
 #' @export
 
 runSimulation <- function(
+  seed,
   simulationSettings,
   predictionSettings,
-  smoothSettings,
-  runSettings
+  smoothSettings
 ) {
 
-  simulatedDataset <- SimulateHte::runDataGeneration(
-    databaseSettings        = simulationSettings$databaseSettings,
-    propensitySettings      = simulationSettings$propensitySettings,
-    baselineRiskSettings    = simulationSettings$baselineRiskSettings,
-    treatmentEffectSettings = simulationSettings$treatmentEffectSettings
-  )
-
-  predictionSettings$args$data <- simulatedDataset
-  predictionModel <- do.call(
-    eval(parse(text = predictionSettings$fun)),
-    predictionSettings$args
-  )
-  simulatedDataset <- simulatedDataset %>%
-    dplyr::mutate(
-      riskLinearPredictor = predict(
-        predictionModel,
-        newdata = simulatedDataset %>%
-          dplyr::mutate(treatment = 0)
-      )
-    ) %>%
-    dplyr::select(-propensityLinearPredictor)
-
-  simulatedDataset0 <- simulatedDataset %>%
-    dplyr::filter(treatment == 0)
-  simulatedDataset1 <- simulatedDataset %>%
-    dplyr::filter(treatment == 1)
-
+  set.seed(seed)
   smoothLabels <- unlist(
     rlist::list.map(                     # extract the second element of a
       smoothSettings,                    # list of lists (here the label)
@@ -42,44 +17,152 @@ runSimulation <- function(
   )
   names(smoothLabels) <- NULL
 
-  pehe <- list()
-  for (i in seq_along(smoothLabels)) {
-    smoothSettingsTmp <- smoothSettings[[i]]
-    if (smoothSettingsTmp$type == "loess") {
-      f <- "fitLoessHte"
-    } else if (smoothSettingsTmp$type == "rcs") {
-      f <- "fitRcsHte"
-    } else {
-      f <- "fitLocfitHte"
-    }
-    args <- list(
-      data = simulatedDataset0,
-      settings = smoothSettingsTmp$settings
-    )
-    s0 <- do.call(
-      eval(parse(text = f)),
-      args = args
-    )
-    args <- list(
-      data = simulatedDataset1,
-      settings = smoothSettingsTmp$settings
-    )
-    s1 <- do.call(
-      eval(parse(text = f)),
-      args = args
-    )
-
-    pehe[[i]] <- SimulateHte::calculatePEHE(
-      data = simulatedDataset,
-      predictedBenefit = SmoothHte::predictBenefit(
-        p = plogis(simulatedDataset$riskLinearPredictor),
-        smoothControl = s0,
-        smoothTreatment = s1
+  res <- tryCatch(
+    {
+      simulatedDataset <- SimulateHte::runDataGeneration(
+        databaseSettings        = simulationSettings$databaseSettings,
+        propensitySettings      = simulationSettings$propensitySettings,
+        baselineRiskSettings    = simulationSettings$baselineRiskSettings,
+        treatmentEffectSettings = simulationSettings$treatmentEffectSettings
       )
-    )
-  }
-  names(pehe) <- smoothLabels
 
-  return(pehe)
+      predictionSettings$args$data <- simulatedDataset
+      predictionModel <- do.call(
+        eval(parse(text = predictionSettings$fun)),
+        predictionSettings$args
+      )
+      simulatedDataset <- simulatedDataset %>%
+        dplyr::mutate(
+          riskLinearPredictor = predict(
+            predictionModel,
+            newdata = simulatedDataset %>%
+              dplyr::mutate(treatment = 0)
+          )
+        )
+
+      simulatedDataset0 <- simulatedDataset %>%
+        dplyr::filter(treatment == 0)
+      simulatedDataset1 <- simulatedDataset %>%
+        dplyr::filter(treatment == 1)
+
+      pehe <- list()
+      for (i in seq_along(smoothLabels)) {
+        smoothSettingsTmp <- smoothSettings[[i]]
+        smoothType <- smoothSettingsTmp$type
+
+        if (smoothType == "loess") {
+          s0 <- SmoothHte::fitLoessHte(
+            data = simulatedDataset0,
+            settings = smoothSettingsTmp$settings
+          )
+          s1 <- SmoothHte::fitLoessHte(
+            data = simulatedDataset1,
+            settings = smoothSettingsTmp$settings
+          )
+        } else if (smoothType == "rcs") {
+          s0 <- SmoothHte::fitRcsHte(
+            data = simulatedDataset0,
+            settings = smoothSettingsTmp$settings
+          )
+          s1 <- SmoothHte::fitRcsHte(
+            data = simulatedDataset1,
+            settings = smoothSettingsTmp$settings
+          )
+        } else if (smoothType == "locfit") {
+          s0 <- SmoothHte::fitLocfitHte(
+            data = simulatedDataset0,
+            settings = smoothSettingsTmp$settings
+          )
+          s1 <- SmoothHte::fitLocfitHte(
+            data = simulatedDataset1,
+            settings = smoothSettingsTmp$settings
+          )
+        } else {
+          stratifiedHte <- SmoothHte::fitStratifiedHte(
+            data = simulatedDataset,
+            settings = smoothSettingsTmp$settings
+          )
+        }
+
+        pehe[[i]] <- ifelse(
+          smoothType == "stratified",
+          SimulateHte::calculatePEHE(
+            data             = simulatedDataset,
+            predictedBenefit = SmoothHte::predictStratifiedBenefit(
+              p             = plogis(simulatedDataset$riskLinearPredictor),
+              stratifiedHte = stratifiedHte
+            )
+          ),
+          SimulateHte::calculatePEHE(
+            data             = simulatedDataset,
+            predictedBenefit = SmoothHte::predictBenefit(
+              p               = plogis(simulatedDataset$riskLinearPredictor),
+              smoothControl   = s0,
+              smoothTreatment = s1
+            )
+          )
+        )
+      }
+      names(pehe) <- smoothLabels
+      pehe
+    },
+    error = function(e) {
+      e$message
+    }
+  )
+  if (is.character(res)) {
+    return(NULL)
+  } else {
+    return(res)
+  }
+}
+
+
+#' @export
+runAnalysis <- function(
+  analysisSettings,
+  simulationSettings,
+  predictionSettings,
+  smoothSettings
+) {
+
+  if (is.null(analysisSettings$seeds)) {
+    x <- sample(
+      x    = 1e5,
+      size = analysisSettings$replications
+    )
+    analysisSettings$seeds <- x
+  } else {
+    x <- analysisSettings$seeds
+  }
+
+  cl <- parallel::makeCluster(analysisSettings$threads)
+  parallelMap::parallelLibrary("SimulationEvaluationHte")
+  res <- parallel::clusterApply(
+    x                  = x,
+    cl                 = cl,
+    fun                = runSimulation,
+    simulationSettings = simulationSettings,
+    predictionSettings = predictionSettings,
+    smoothSettings     = smoothSettings
+  )
+  parallel::stopCluster(cl)
+
+  res <- do.call(dplyr::bind_rows, lapply(res, dplyr::bind_rows))
+  data.table::setDT(res)
+
+  settings <- list(
+    analysisSettings   = analysisSettings,
+    simulationSettings = simulationSettings,
+    predictionSettings = predictionSettings,
+    smoothSettings     = smoothSettings
+  )
+
+  return(
+    list(
+      settings = settings,
+      pehe     = res
+    )
+  )
 
 }
