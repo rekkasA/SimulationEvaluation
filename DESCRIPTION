@@ -19,3 +19,6 @@ Depends:
     SimulateHte
 Imports:
     dplyr
+Remotes:
+    rekkasA/SmoothHte
+    rekkasA/SimulateHte
