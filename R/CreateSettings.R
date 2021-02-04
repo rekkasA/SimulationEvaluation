@@ -30,3 +30,22 @@ createSmoothSettings <- function(
 
   return(analysis)
 }
+
+
+
+#' @export
+createAnalysisSettings <- function(
+  threads      = 1,
+  replications = 100,
+  seeds        = sample(1e5, replications),
+  label        = "analysis",
+  description  = "description"
+) {
+  analysis <- list()
+  for (name in names(formals(createAnalysisSettings))) {
+    analysis[[name]] <- get(name)
+  }
+  class(analysis) <- "args"
+
+  return(analysis)
+}
