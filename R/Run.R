@@ -5,7 +5,8 @@ runSimulation <- function(
   seed,
   simulationSettings,
   predictionSettings,
-  smoothSettings
+  smoothSettings,
+  validationDataset
 ) {
 
   set.seed(seed)
@@ -31,6 +32,14 @@ runSimulation <- function(
         eval(parse(text = predictionSettings$fun)),
         predictionSettings$args
       )
+      validationDataset <- validationDataset %>%
+        dplyr::mutate(
+          riskLinearPredictor = predict(
+            predictionModel,
+            newdata = validationDataset %>%
+              dplyr::mutate(treatment = 0)
+          )
+        )
       simulatedDataset <- simulatedDataset %>%
         dplyr::mutate(
           riskLinearPredictor = predict(
@@ -87,16 +96,16 @@ runSimulation <- function(
         pehe[[i]] <- ifelse(
           smoothType == "stratified",
           SimulateHte::calculatePEHE(
-            data             = simulatedDataset,
+            data             = validationDataset,
             predictedBenefit = SmoothHte::predictStratifiedBenefit(
-              p             = plogis(simulatedDataset$riskLinearPredictor),
+              p             = plogis(validationDataset$riskLinearPredictor),
               stratifiedHte = stratifiedHte
             )
           ),
           SimulateHte::calculatePEHE(
-            data             = simulatedDataset,
+            data             = validationDataset,
             predictedBenefit = SmoothHte::predictBenefit(
-              p               = plogis(simulatedDataset$riskLinearPredictor),
+              p               = plogis(validationDataset$riskLinearPredictor),
               smoothControl   = s0,
               smoothTreatment = s1
             )
@@ -136,15 +145,26 @@ runAnalysis <- function(
     x <- analysisSettings$seeds
   }
 
+  cat("Starting generation of the validation dataset\n")
+  validationDatabaseSettings <- simulationSettings$databaseSettings
+  validationDatabaseSettings$numberOfObservations <- analysisSettings$validationSize
+  validationDataset <- SimulateHte::runDataGeneration(
+    databaseSettings        = validationDatabaseSettings,
+    propensitySettings      = simulationSettings$propensitySettings,
+    baselineRiskSettings    = simulationSettings$baselineRiskSettings,
+    treatmentEffectSettings = simulationSettings$treatmentEffectSettings
+  )
+
+  cat("Running simulations...\n")
   cl <- parallel::makeCluster(analysisSettings$threads)
-  parallelMap::parallelLibrary("SimulationEvaluationHte")
   res <- parallel::clusterApply(
     x                  = x,
     cl                 = cl,
     fun                = runSimulation,
     simulationSettings = simulationSettings,
     predictionSettings = predictionSettings,
-    smoothSettings     = smoothSettings
+    smoothSettings     = smoothSettings,
+    validationDataset  = validationDataset
   )
   parallel::stopCluster(cl)
 
