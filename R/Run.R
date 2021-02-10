@@ -5,7 +5,8 @@ runSimulation <- function(
   seed,
   simulationSettings,
   predictionSettings,
-  smoothSettings
+  smoothSettings,
+  validationDataset
 ) {
 
   set.seed(seed)
@@ -31,6 +32,14 @@ runSimulation <- function(
         eval(parse(text = predictionSettings$fun)),
         predictionSettings$args
       )
+      validationDataset <- validationDataset %>%
+        dplyr::mutate(
+          riskLinearPredictor = predict(
+            predictionModel,
+            newdata = validationDataset %>%
+              dplyr::mutate(treatment = 0)
+          )
+        )
       simulatedDataset <- simulatedDataset %>%
         dplyr::mutate(
           riskLinearPredictor = predict(
@@ -87,16 +96,16 @@ runSimulation <- function(
         pehe[[i]] <- ifelse(
           smoothType == "stratified",
           SimulateHte::calculatePEHE(
-            data             = simulatedDataset,
+            data             = validationDataset,
             predictedBenefit = SmoothHte::predictStratifiedBenefit(
-              p             = plogis(simulatedDataset$riskLinearPredictor),
+              p             = plogis(validationDataset$riskLinearPredictor),
               stratifiedHte = stratifiedHte
             )
           ),
           SimulateHte::calculatePEHE(
-            data             = simulatedDataset,
+            data             = validationDataset,
             predictedBenefit = SmoothHte::predictBenefit(
-              p               = plogis(simulatedDataset$riskLinearPredictor),
+              p               = plogis(validationDataset$riskLinearPredictor),
               smoothControl   = s0,
               smoothTreatment = s1
             )
@@ -111,8 +120,10 @@ runSimulation <- function(
     }
   )
   if (is.character(res)) {
+    ParallelLogger::logWarn(paste("Run failed for seed:"), seed)
     return(NULL)
   } else {
+    ParallelLogger::logTrace(paste("Run finished for seed:"), seed)
     return(res)
   }
 }
@@ -126,27 +137,72 @@ runAnalysis <- function(
   smoothSettings
 ) {
 
+  analysisPath <- file.path(
+    analysisSettings$saveDirectory,
+    analysisSettings$analysisId
+  )
+
+  if (!dir.exists(analysisPath)) {
+    dir.create(analysisPath, recursive = TRUE)
+  }
+
+  logFileName <- file.path(
+    analysisPath,
+    "log.txt"
+  )
+
+  ParallelLogger::clearLoggers()
+  logger <- ParallelLogger::createLogger(
+    name = "Simulation",
+    threshold = "INFO",
+    appenders = list(
+      ParallelLogger::createFileAppender(
+        layout = ParallelLogger::layoutParallel,
+        fileName = logFileName
+      ),
+      ParallelLogger::createConsoleAppender(
+        ParallelLogger::layoutTimestamp
+      )
+    )
+  )
+  ParallelLogger::registerLogger(logger)
+  ParallelLogger::logInfo("Starting simulation")
+
   if (is.null(analysisSettings$seeds)) {
     x <- sample(
-      x    = 1e5,
-      size = analysisSettings$replications
+      x       = 1e5,
+      size    = analysisSettings$replications,
+      replace = FALSE
     )
     analysisSettings$seeds <- x
   } else {
     x <- analysisSettings$seeds
   }
+  ParallelLogger::logInfo("Genarated seeds")
+  ParallelLogger::logInfo("Starting generation of the validation dataset")
+  validationDatabaseSettings <- simulationSettings$databaseSettings
+  validationDatabaseSettings$numberOfObservations <- analysisSettings$validationSize
+  validationDataset <- SimulateHte::runDataGeneration(
+    databaseSettings        = validationDatabaseSettings,
+    propensitySettings      = simulationSettings$propensitySettings,
+    baselineRiskSettings    = simulationSettings$baselineRiskSettings,
+    treatmentEffectSettings = simulationSettings$treatmentEffectSettings
+  )
+  ParallelLogger::logInfo("Done")
 
-  cl <- parallel::makeCluster(analysisSettings$threads)
-  parallelMap::parallelLibrary("SimulationEvaluationHte")
-  res <- parallel::clusterApply(
+  ParallelLogger::logInfo("Running simulations...")
+  cl <- ParallelLogger::makeCluster(analysisSettings$threads)
+  res <- ParallelLogger::clusterApply(
     x                  = x,
     cl                 = cl,
     fun                = runSimulation,
     simulationSettings = simulationSettings,
     predictionSettings = predictionSettings,
-    smoothSettings     = smoothSettings
+    smoothSettings     = smoothSettings,
+    validationDataset  = validationDataset
   )
-  parallel::stopCluster(cl)
+  ParallelLogger::stopCluster(cl)
+  ParallelLogger::logInfo("Done")
 
   res <- do.call(dplyr::bind_rows, lapply(res, dplyr::bind_rows))
   data.table::setDT(res)
@@ -158,6 +214,36 @@ runAnalysis <- function(
     smoothSettings     = smoothSettings
   )
 
+
+  saveRDS(
+    settings,
+    file = file.path(
+      analysisPath,
+      "settings.rds"
+    )
+  )
+
+  saveRDS(
+    res,
+    file = file.path(
+      analysisPath,
+      "pege.rds"
+    )
+  )
+
+  ParallelLogger::logInfo("Simulation finished without errors")
+  ParallelLogger::unregisterLogger(logger)
+  ParallelLogger::clearLoggers()
+
+  logger <- ParallelLogger::createLogger(
+    name = "SIMPLE",
+    threshold = "INFO",
+    appenders = list(
+      ParallelLogger::createConsoleAppender(
+        layout = ParallelLogger::layoutTimestamp
+      )
+    )
+  )
   return(
     list(
       settings = settings,
