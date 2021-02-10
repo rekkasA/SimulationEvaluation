@@ -18,7 +18,8 @@ Depends:
     SmoothHte,
     SimulateHte
 Imports:
-    dplyr
+    dplyr,
+    ParallelLogger
 Remotes:
     rekkasA/SmoothHte@main,
     rekkasA/SimulateHte@main

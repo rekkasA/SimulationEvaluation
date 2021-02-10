@@ -39,8 +39,9 @@ createAnalysisSettings <- function(
   replications   = 100,
   validationSize = 1e6,
   seeds          = sample(1e5, replications),
-  label          = "analysis",
-  description    = "description"
+  analysisId     = "analysis",
+  description    = "description",
+  saveDirectory  = getwd()
 ) {
   analysis <- list()
   for (name in names(formals(createAnalysisSettings))) {
