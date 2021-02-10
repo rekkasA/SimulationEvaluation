@@ -14,12 +14,13 @@ Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.1.1
-Depends:
-    SmoothHte,
-    SimulateHte
 Imports:
+    SmoothHte,
+    SimulateHte,
     dplyr,
-    ParallelLogger
+    ParallelLogger,
+    data.table,
+    rlist
 Remotes:
     rekkasA/SmoothHte@main,
     rekkasA/SimulateHte@main

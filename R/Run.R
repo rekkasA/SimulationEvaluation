@@ -1,3 +1,14 @@
+#' Run simulation
+#'
+#' @description
+#' Runs a single simulation based on the provided settings
+#'
+#' @param seed                     The random seed
+#' @param simulationSettings       The settings for the simulation provided from
+#' @param predictionSettings
+#' @param smoothSettings
+#' @param validationDataset
+#'
 #' @importFrom dplyr %>%
 #' @export
 
@@ -129,6 +140,7 @@ runSimulation <- function(
 }
 
 
+#' @importFrom data.table setDT
 #' @export
 runAnalysis <- function(
   analysisSettings,
