@@ -86,7 +86,7 @@ calculateDiscriminationForBenefit <- function(
     dplyr::filter(quantile == strata)
   highest <- subData[subData$treatment == 0, ]$meanObservedBenefit - subData[subData$treatment == 1, ]$meanObservedBenefit
 
-  res <- mean(c(highest, lowest))
+  res <- highest - lowest
   return(res)
 
 }
