@@ -54,14 +54,8 @@ runSimulation <- function(
       simulatedDataset1 <- simulatedDataset %>%
         dplyr::filter(treatment == 1)
 
-      startingTrueBenefit <- c(
-        plogis(validationDataset$untreatedRiskLinearPredictor) -
-        plogis(validationDataset$treatedRiskLinearPredictor)
-      )
-
       pehe <- calibration <- discrimination <- list()
       for (i in seq_along(smoothLabels)) {
-        trueBenefit <- startingTrueBenefit
         selectedRows <- rep(TRUE, nrow(validationDataset))
         smoothSettingsTmp <- smoothSettings[[i]]
         smoothType <- smoothSettingsTmp$type
@@ -126,7 +120,8 @@ runSimulation <- function(
 
         calibrationData <- data.frame(
           predictedBenefit = predictedBenefit[selectedRows],
-          trueBenefit      = trueBenefit[selectedRows]
+          outcome          = validationDataset[selectedRows, ]$outcome,
+          treatment        = validationDataset[selectedRows, ]$treatment
         )
 
         discriminationData <- data.frame(
@@ -137,12 +132,14 @@ runSimulation <- function(
 
         calibration[[i]] <- calculateCalibrationForBenefit(
           data   = calibrationData,
-          strata = 4
+          strata = 4,
+          type   = smoothType
         )
 
         discrimination[[i]] <- calculateDiscriminationForBenefit(
           data   = discriminationData,
-          strata = 4
+          strata = 4,
+          type   = smoothType
         )
 
         pehe[[i]] <- SimulateHte::calculatePEHE(

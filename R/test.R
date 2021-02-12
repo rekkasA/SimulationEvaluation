@@ -1,10 +1,9 @@
-# library(SimulateHte)
-# library(dplyr)
+# library(SimulationEvaluationHte)
 # library(SmoothHte)
-# library(rms)
+# library(SimulateHte)
 #
 # databaseSettings <- createDatabaseSettings(
-#   numberOfObservations = 1e4,
+#   numberOfObservations = 5e3,
 #   numberOfCovariates = 4,
 #   covariateDistributionSettings = list(
 #     createNormalDistributionSettings(),
@@ -13,6 +12,7 @@
 #     createNormalDistributionSettings()
 #   )
 # )
+#
 # baselineRiskSettings <- createBaselineRiskSettings(
 #   type = "binary",
 #   modelSettings = createModelSettings(
@@ -27,6 +27,7 @@
 #     coefficients = rep(.8, 4)
 #   )
 # )
+#
 # propensitySettings <- createPropensitySettings(
 #   type = "binary",
 #   modelSettings = createModelSettings(
@@ -34,12 +35,14 @@
 #     modelMatrix = diag(0)
 #   )
 # )
+#
 # treatmentEffectSettings <- createTreatmentEffectSettings(
 #   type = "lp",
 #   modelSettings = createModelSettings(
 #     constant = -0.5108256
 #   )
 # )
+#
 # simulationSettings <- list(
 #   databaseSettings = databaseSettings,
 #   propensitySettings = propensitySettings,
@@ -47,6 +50,14 @@
 #   treatmentEffectSettings = treatmentEffectSettings
 # )
 #
+# analysisSettings <- createAnalysisSettings(
+#   threads = 8,
+#   replications = 1e3,
+#   validationSize = 5e5,
+#   analysisId  = "analysis",
+#   description = "description",
+#   saveDirectory = "C:/Users/acrek/Documents/Projects/SmoothingPackages/Results"
+# )
 #
 # predictionSettings <- createPredictionSettings(
 #   args = list(
@@ -55,7 +66,6 @@
 #   ),
 #   fun = "glm"
 # )
-#
 #
 # smoothSettings <- list(
 #   loess = createSmoothSettings(
@@ -72,38 +82,26 @@
 #     type = "locfit",
 #     settings = SmoothHte::createLocfitSettings(),
 #     label = "locfit"
+#   ),
+#   stratified = createSmoothSettings(
+#     type = "stratified",
+#     settings = SmoothHte::createStratifiedSettings(),
+#     label = "stratified"
 #   )
 # )
 #
-#
-# runSimulation(
-#   simulationSettings,
-#   predictionSettings,
-#   smoothSettings, NULL
+# res <- runAnalysis(
+#   analysisSettings = analysisSettings,
+#   simulationSettings = simulationSettings,
+#   predictionSettings = predictionSettings,
+#   smoothSettings = smoothSettings
 # )
 #
-# pehe$loess[[i]] <- calculatePEHE(
-#   data = dd,
-#   predictedBenefit = predictBenefit(
-#     p = plogis(dd$riskLinearPredictor),
-#     smoothControl = s0,
-#     smoothTreatment = s1
-#   )
-# )
-# pehe$rcs[[i]] <- calculatePEHE(
-#   data = dd,
-#   predictedBenefit = predictBenefit(
-#     p = plogis(dd$riskLinearPredictor),
-#     smoothControl = r0,
-#     smoothTreatment = r1
-#   )
-# )
-# pehe$locfit[[i]] <- calculatePEHE(
-#   data = dd,
-#   predictedBenefit = predictBenefit(
-#     p = plogis(dd$riskLinearPredictor),
-#     smoothControl = l0,
-#     smoothTreatment = l1
-#   )
-# )
-#
+# evaluation <- res$evaluation
+# evaluation$calibration %>%
+#   reshape2::melt() %>%
+#   ggplot2::ggplot(
+#     ggplot2::aes(x = variable, y = value, fill = variable)
+#   ) +
+#   ggplot2::geom_boxplot() +
+#   ggplot2::theme_bw()
