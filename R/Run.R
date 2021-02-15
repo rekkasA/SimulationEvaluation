@@ -54,8 +54,9 @@ runSimulation <- function(
       simulatedDataset1 <- simulatedDataset %>%
         dplyr::filter(treatment == 1)
 
-      pehe <- list()
+      pehe <- calibration <- discrimination <- list()
       for (i in seq_along(smoothLabels)) {
+        selectedRows <- rep(TRUE, nrow(validationDataset))
         smoothSettingsTmp <- smoothSettings[[i]]
         smoothType <- smoothSettingsTmp$type
 
@@ -93,27 +94,65 @@ runSimulation <- function(
           )
         }
 
-        pehe[[i]] <- ifelse(
-          smoothType == "stratified",
-          SimulateHte::calculatePEHE(
-            data             = validationDataset,
-            predictedBenefit = SmoothHte::predictStratifiedBenefit(
-              p             = plogis(validationDataset$riskLinearPredictor),
-              stratifiedHte = stratifiedHte
-            )
-          ),
-          SimulateHte::calculatePEHE(
-            data             = validationDataset,
-            predictedBenefit = SmoothHte::predictBenefit(
-              p               = plogis(validationDataset$riskLinearPredictor),
-              smoothControl   = s0,
-              smoothTreatment = s1
+        if (smoothType == "stratified") {
+          predictedBenefit <- SmoothHte::predictStratifiedBenefit(
+            p             = plogis(validationDataset$riskLinearPredictor),
+            stratifiedHte = stratifiedHte
+          )
+        } else {
+          predictedBenefit <- SmoothHte::predictBenefit(
+            p               = plogis(validationDataset$riskLinearPredictor),
+            smoothControl   = s0,
+            smoothTreatment = s1
+          )
+        }
+
+        nas <- sum(is.na(predictedBenefit))
+        if (nas > 0) {
+          ParallelLogger::logWarn(
+            paste(
+              "There were", nas,
+              "NAs produced for seed:", seed
             )
           )
+          selectedRows[which(is.na(predictedBenefit))] <- FALSE
+        }
+
+        calibrationData <- data.frame(
+          predictedBenefit = predictedBenefit[selectedRows],
+          outcome          = validationDataset[selectedRows, ]$outcome,
+          treatment        = validationDataset[selectedRows, ]$treatment
+        )
+
+        discriminationData <- data.frame(
+          treatment        = validationDataset[selectedRows, ]$treatment,
+          outcome          = validationDataset[selectedRows, ]$outcome,
+          predictedBenefit = predictedBenefit[selectedRows]
+        )
+
+        calibration[[i]] <- calculateCalibrationForBenefit(
+          data   = calibrationData,
+          strata = 4,
+          type   = smoothType
+        )
+
+        discrimination[[i]] <- calculateDiscriminationForBenefit(
+          data   = discriminationData,
+          strata = 4,
+          type   = smoothType
+        )
+
+        pehe[[i]] <- SimulateHte::calculatePEHE(
+          data             = validationDataset[selectedRows, ],
+          predictedBenefit = predictedBenefit[selectedRows]
         )
       }
-      names(pehe) <- smoothLabels
-      pehe
+      names(pehe) <- names(calibration) <- names(discrimination) <- smoothLabels
+      list(
+        pehe           = pehe,
+        discrimination = discrimination,
+        calibration    = calibration
+      )
     },
     error = function(e) {
       e$message
@@ -129,6 +168,7 @@ runSimulation <- function(
 }
 
 
+#' @importFrom data.table setDT
 #' @export
 runAnalysis <- function(
   analysisSettings,
@@ -204,8 +244,17 @@ runAnalysis <- function(
   ParallelLogger::stopCluster(cl)
   ParallelLogger::logInfo("Done")
 
-  res <- do.call(dplyr::bind_rows, lapply(res, dplyr::bind_rows))
-  data.table::setDT(res)
+  evaluation <- list()
+  for (i in 1:3) {
+    tmp <- rlist::list.map(res, .[i])
+    evaluation[[i]] <- do.call(dplyr::bind_rows, lapply(tmp, dplyr::bind_rows))
+  }
+
+  names(evaluation) <- c(
+    "rmse",
+    "discrimination",
+    "calibration"
+  )
 
   settings <- list(
     analysisSettings   = analysisSettings,
@@ -224,10 +273,10 @@ runAnalysis <- function(
   )
 
   saveRDS(
-    res,
+    evaluation,
     file = file.path(
       analysisPath,
-      "pege.rds"
+      "evaluation.rds"
     )
   )
 
@@ -246,8 +295,8 @@ runAnalysis <- function(
   )
   return(
     list(
-      settings = settings,
-      pehe     = res
+      settings   = settings,
+      evaluation = evaluation
     )
   )
 
