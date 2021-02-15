@@ -87,8 +87,13 @@ runSimulation <- function(
             data = simulatedDataset1,
             settings = smoothSettingsTmp$settings
           )
-        } else {
+        } else if (smoothType == "stratified") {
           stratifiedHte <- SmoothHte::fitStratifiedHte(
+            data = simulatedDataset,
+            settings = smoothSettingsTmp$settings
+          )
+        } else {
+          modelBasedHte <- SmoothHte::fitModelBasedHte(
             data = simulatedDataset,
             settings = smoothSettingsTmp$settings
           )
@@ -99,8 +104,13 @@ runSimulation <- function(
             p             = plogis(validationDataset$riskLinearPredictor),
             stratifiedHte = stratifiedHte
           )
+        } else if (smoothType == "modelBased") {
+          predictedBenefit <- SmoothHte::predictBenefitModelBasedHte(
+            p             = plogis(validationDataset$riskLinearPredictor),
+            modelBasedFit = modelBasedHte
+          )
         } else {
-          predictedBenefit <- SmoothHte::predictBenefit(
+          predictedBenefit <- SmoothHte::predictSmoothBenefit(
             p               = plogis(validationDataset$riskLinearPredictor),
             smoothControl   = s0,
             smoothTreatment = s1

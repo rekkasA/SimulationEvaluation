@@ -31,7 +31,7 @@ createPredictionSettings <- function(
 #' Creates the settings for performing a smooth estimation of benefit
 #'
 #' @param type        The type of smoothing. Can be one of "loess", "rcs" or
-#'                    "locfit"
+#'                    "locfit", "stratified" or "modelBased"
 #' @param label       The label of the smoothing approach
 #' @param settings    Depending on the type of smoothing can be generated from
 #'                    [createLoessSettings()], [createRcsSettings()] or
