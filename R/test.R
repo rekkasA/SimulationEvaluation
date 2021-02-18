@@ -105,3 +105,31 @@
 #   ) +
 #   ggplot2::geom_boxplot() +
 #   ggplot2::theme_bw()
+#
+# f <- function(
+#   x, a, b, c
+# ) {
+#   ret <- b * x^2 + (a + 1) * x + c
+#   return(ret)
+# }
+#
+# l <- function(
+#   x, a, c
+# ) {
+#   ret <- (a + 1) * x + c
+#   return(ret)
+# }
+#
+# ggplot(
+#   data = data.frame(x = c(-5, 5)),
+#   aes(x = x)
+# ) +
+#   stat_function(
+#     fun = f,
+#     args = list(a = 0, b = -.2, c = log(.5))
+#   ) +
+#   stat_function(
+#     fun = l,
+#     args = list(a = 0, c = log(.5)),
+#     color = "red"
+#   )
