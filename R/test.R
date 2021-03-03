@@ -1,6 +1,7 @@
 # library(SimulationEvaluationHte)
 # library(SmoothHte)
 # library(SimulateHte)
+# library(tidyverse)
 #
 # databaseSettings <- createDatabaseSettings(
 #   numberOfObservations = 5e3,
@@ -51,12 +52,12 @@
 # )
 #
 # analysisSettings <- createAnalysisSettings(
-#   threads = 8,
-#   replications = 1e3,
-#   validationSize = 5e5,
+#   threads = 4,
+#   replications = 10,
+#   validationSize = 2e5,
 #   analysisId  = "analysis",
 #   description = "description",
-#   saveDirectory = "C:/Users/acrek/Documents/Projects/SmoothingPackages/Results"
+#   saveDirectory = "~/Documents/Projects/arekkas_HteSimulation_XXXX_2021/.scratch/testResults"
 # )
 #
 # predictionSettings <- createPredictionSettings(

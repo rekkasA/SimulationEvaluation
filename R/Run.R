@@ -118,21 +118,21 @@ runSimulation <- function(
         }
 
         nas <- sum(is.na(predictedBenefit))
-        if (nas > 0) {
-          ParallelLogger::logWarn(
-            paste(
-              "There were", nas,
-              "NAs produced for seed:", seed
-            )
-          )
-          selectedRows[which(is.na(predictedBenefit))] <- FALSE
-        }
+        # if (nas > 0) {
+        #   ParallelLogger::logWarn(
+        #     paste(
+        #       "There were", nas,
+        #       "NAs produced for seed:", seed
+        #     )
+        #   )
+        #   selectedRows[which(is.na(predictedBenefit))] <- FALSE
+        # }
 
-        calibrationData <- data.frame(
-          predictedBenefit = predictedBenefit[selectedRows],
-          outcome          = validationDataset[selectedRows, ]$outcome,
-          treatment        = validationDataset[selectedRows, ]$treatment
-        )
+        # calibrationData <- data.frame(
+        #   predictedBenefit = predictedBenefit[selectedRows],
+        #   outcome          = validationDataset[selectedRows, ]$outcome,
+        #   treatment        = validationDataset[selectedRows, ]$treatment
+        # )
 
         discriminationData <- data.frame(
           treatment        = validationDataset[selectedRows, ]$treatment,
@@ -140,28 +140,24 @@ runSimulation <- function(
           predictedBenefit = predictedBenefit[selectedRows]
         )
 
-        calibration[[i]] <- calculateCalibrationForBenefit(
-          data   = calibrationData,
-          strata = 4,
-          type   = smoothType
-        )
+        # calibration[[i]] <- calculateCalibrationForBenefit(
+        #   data   = calibrationData,
+        #   strata = 4,
+        #   type   = smoothType
+        # )
 
-        discrimination[[i]] <- calculateDiscriminationForBenefit(
-          data   = discriminationData,
-          strata = 4,
-          type   = smoothType
-        )
+        discrimination[[i]] <- SmoothHte::calculateCForBenefit(discriminationData)
 
         pehe[[i]] <- SimulateHte::calculatePEHE(
           data             = validationDataset[selectedRows, ],
           predictedBenefit = predictedBenefit[selectedRows]
         )
       }
-      names(pehe) <- names(calibration) <- names(discrimination) <- smoothLabels
+      names(pehe)  <- names(discrimination) <- smoothLabels # <- names(calibration)
       list(
         pehe           = pehe,
-        discrimination = discrimination,
-        calibration    = calibration
+        discrimination = discrimination
+        # calibration    = calibration
       )
     },
     error = function(e) {
@@ -218,6 +214,7 @@ runAnalysis <- function(
   ParallelLogger::registerLogger(logger)
   ParallelLogger::logInfo("Starting simulation")
 
+  # ---- x: contains seeds ----
   if (is.null(analysisSettings$seeds)) {
     x <- sample(
       x       = 1e5,
@@ -242,6 +239,7 @@ runAnalysis <- function(
 
   ParallelLogger::logInfo("Running simulations...")
   cl <- ParallelLogger::makeCluster(analysisSettings$threads)
+  ParallelLogger::clusterRequire(cl, "dplyr")
   res <- ParallelLogger::clusterApply(
     x                  = x,
     cl                 = cl,
