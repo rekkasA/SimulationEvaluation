@@ -118,46 +118,44 @@ runSimulation <- function(
         }
 
         nas <- sum(is.na(predictedBenefit))
-        # if (nas > 0) {
-        #   ParallelLogger::logWarn(
-        #     paste(
-        #       "There were", nas,
-        #       "NAs produced for seed:", seed
-        #     )
-        #   )
-        #   selectedRows[which(is.na(predictedBenefit))] <- FALSE
-        # }
+        if (nas > 0) {
+          ParallelLogger::logWarn(
+            paste(
+              "There were", nas,
+              "NAs produced for seed:", seed
+            )
+          )
+          selectedRows[which(is.na(predictedBenefit))] <- FALSE
+        }
 
-        # calibrationData <- data.frame(
-        #   predictedBenefit = predictedBenefit[selectedRows],
-        #   outcome          = validationDataset[selectedRows, ]$outcome,
-        #   treatment        = validationDataset[selectedRows, ]$treatment
-        # )
-
-        discriminationData <- data.frame(
-          treatment        = validationDataset[selectedRows, ]$treatment,
+        evaluationData <- data.frame(
+          predictedBenefit = predictedBenefit[selectedRows],
           outcome          = validationDataset[selectedRows, ]$outcome,
-          predictedBenefit = predictedBenefit[selectedRows]
+          treatment        = validationDataset[selectedRows, ]$treatment
         )
 
-        # calibration[[i]] <- calculateCalibrationForBenefit(
-        #   data   = calibrationData,
-        #   strata = 4,
-        #   type   = smoothType
-        # )
+        discrimination[[i]] <- SmoothHte::calculateCForBenefit(
+          data   = evaluationData,
+          method = "rank"
+        )
 
-        discrimination[[i]] <- SmoothHte::calculateCForBenefit(discriminationData)
+        tmp <- SmoothHte::calculateCalibrationForBenefit(
+          data   = evaluationData,
+          method = "rank"
+        )
+
+        calibration[[i]] <- tmp$ici
 
         pehe[[i]] <- SimulateHte::calculatePEHE(
           data             = validationDataset[selectedRows, ],
           predictedBenefit = predictedBenefit[selectedRows]
         )
       }
-      names(pehe)  <- names(discrimination) <- smoothLabels # <- names(calibration)
+      names(pehe)  <- names(discrimination) <- names(calibration) <- smoothLabels
       list(
         pehe           = pehe,
-        discrimination = discrimination
-        # calibration    = calibration
+        discrimination = discrimination,
+        calibration    = calibration
       )
     },
     error = function(e) {

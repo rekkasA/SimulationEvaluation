@@ -149,34 +149,3 @@
 # }
 
 
-#' Calculate discrimination for benefit
-#'
-#' @description
-#' Calcualates the discrimination for benefit in a validation set based on a
-#' model. The validation dataset is simulated and the true benefit is assumed to
-#' be known.
-#'
-#' @param data     The validation dataset. A column named `trueBenefit` containing
-#'                 the true treatment benefits is required
-#' @param model    The model for predicting benefit
-#'
-#' @export
-
-calculateDiscriminationForBenefit <- function(
-  data,
-  model
-) {
-
-  data <- data %>%
-    dplyr::tibble() %>%
-    dplyr::mutate(
-      trueBenefit = expit(untreatedRiskLinearPredictor) - expit(treatedRiskLinearPredictor)
-    )
-
-  ret <- Hmisc::rcorr(
-    data$predictedBenefit,
-    data$trueBenefit
-  )
-
-  return(ret)
-}
