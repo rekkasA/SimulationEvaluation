@@ -3,6 +3,7 @@
 export(createAnalysisSettings)
 export(createPredictionSettings)
 export(createSmoothSettings)
+export(evaluateTargets)
 export(runAnalysis)
 export(runSimulation)
 importFrom(data.table,setDT)
