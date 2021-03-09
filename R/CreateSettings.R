@@ -69,8 +69,8 @@ createSmoothSettings <- function(
 #' @param validationSize     The size of the "true" population size. Used to
 #'                           approximate the "true" performance of the method
 #'                           under study
-#' @param seeds              A vector containing the seeds for each simulation
-#'                           run. If not given the seeds are randomly generated
+#' @param seed               The seed used to generate the `validationDataset`
+#'                           and the simulated datasets
 #' @param description        The description of the simulation
 #' @param saveDirectory      The directory where the results will be stored
 #'
@@ -80,7 +80,7 @@ createAnalysisSettings <- function(
   threads        = 1,
   replications   = 100,
   validationSize = 1e6,
-  seeds          = sample(1e5, replications),
+  seed           = 1,
   description    = "description",
   saveDirectory  = getwd()
 ) {

@@ -9,7 +9,7 @@ createAnalysisSettings(
   threads = 1,
   replications = 100,
   validationSize = 1e+06,
-  seeds = sample(1e+05, replications),
+  seed = 1,
   description = "description",
   saveDirectory = getwd()
 )
@@ -27,8 +27,8 @@ simulation}
 approximate the "true" performance of the method
 under study}
 
-\item{seeds}{A vector containing the seeds for each simulation
-run. If not given the seeds are randomly generated}
+\item{seed}{The seed used to generate the \code{validationDataset}
+and the simulated datasets}
 
 \item{description}{The description of the simulation}
 

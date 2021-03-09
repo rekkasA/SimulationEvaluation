@@ -181,6 +181,7 @@ runAnalysis <- function(
   smoothSettings
 ) {
 
+  set.seed(analysisSettings$seed)
   analysisPath <- file.path(
     analysisSettings$saveDirectory,
     analysisSettings$analysisId
