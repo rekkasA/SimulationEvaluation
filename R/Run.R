@@ -11,9 +11,9 @@ runSimulation <- function(
 
   set.seed(seed)
   smoothLabels <- unlist(
-    rlist::list.map(                     # extract the second element of a
-      smoothSettings,                    # list of lists (here the label)
-      .[2]
+    rlist::list.map(                     # extract the element called label
+      smoothSettings,                    # from each list
+      label
     )
   )
   names(smoothLabels) <- NULL
