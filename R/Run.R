@@ -6,7 +6,8 @@ runSimulation <- function(
   simulationSettings,
   predictionSettings,
   smoothSettings,
-  validationDataset
+  validationDataset,
+  includeAdaptive
 ) {
 
   set.seed(seed)
@@ -151,6 +152,33 @@ runSimulation <- function(
           predictedBenefit = predictedBenefit[selectedRows]
         )
       }
+
+      if (includeAdaptive) {
+        smoothLabels <- c(smoothLabels, "adaptive")
+        nonLinearFit <- rms::lrm(
+          outcome ~ treatment + rms::rcs(riskLinearPredictor, 3) + treatment * rms::rcs(riskLinearPredictor, 3),
+          data = simulatedDataset
+        )
+        linearFit <- rms::lrm(
+          outcome ~ treatment + riskLinearPredictor + treatment * riskLinearPredictor,
+          data = simulatedDataset
+        )
+        constantFit <- rms::lrm(
+          outcome ~ treatment + riskLinearPredictor,
+          data = simulatedDataset
+        )
+        testResult      <- rms::lrtest(nonLinearFit, linearFit)
+        pValueNonLinear <- testResult$stats[["P"]]
+        testResult      <- rms::lrtest(linearFit, constantFit)
+        pValueConstant  <- testResult$stats[["P"]]
+
+        adaptiveMethod <- case_when(
+          pValueNonLinear < .05                          ~ "nonLinear",
+          pValueNonLinear >= .05 & pValueConstant < .05  ~ "linear",
+          pValueNonLinear >= .05 & pValueConstant >= .05 ~ "constant"
+        )
+
+      }
       names(pehe)  <- names(discrimination) <- names(calibration) <- smoothLabels
       list(
         pehe           = pehe,
@@ -178,7 +206,8 @@ runAnalysis <- function(
   analysisSettings,
   simulationSettings,
   predictionSettings,
-  smoothSettings
+  smoothSettings,
+  includeAdaptive = TRUE
 ) {
 
   set.seed(analysisSettings$seed)
@@ -246,7 +275,8 @@ runAnalysis <- function(
     simulationSettings = simulationSettings,
     predictionSettings = predictionSettings,
     smoothSettings     = smoothSettings,
-    validationDataset  = validationDataset
+    validationDataset  = validationDataset,
+    includeAdaptive    = includeAdaptive
   )
   ParallelLogger::stopCluster(cl)
   ParallelLogger::logInfo("Done")
@@ -306,5 +336,4 @@ runAnalysis <- function(
       evaluation = evaluation
     )
   )
-
 }
