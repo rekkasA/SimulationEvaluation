@@ -8,7 +8,7 @@ createSmoothSettings(type, label, settings)
 }
 \arguments{
 \item{type}{The type of smoothing. Can be one of "loess", "rcs" or
-"locfit", "stratified" or "modelBased"}
+"locfit", "stratified", "modelBased" or "adaptive".}
 
 \item{label}{The label of the smoothing approach}
 

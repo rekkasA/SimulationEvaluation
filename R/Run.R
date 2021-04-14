@@ -10,6 +10,11 @@ runSimulation <- function(
   includeAdaptive
 ) {
 
+  #-----------------------------------------------------------------------------
+  # Add a check when includeAdaptive = TRUE to ensure that a constant approach
+  # and a smooth approach are included in the smoothSettings
+  #-----------------------------------------------------------------------------
+
   set.seed(seed)
   smoothLabels <- unlist(
     rlist::list.map(                     # extract the element called label
@@ -93,7 +98,7 @@ runSimulation <- function(
             data = simulatedDataset,
             settings = smoothSettingsTmp$settings
           )
-        } else {
+        } else if (smoothType == "modelBased") {
           modelBasedHte <- SmoothHte::fitModelBasedHte(
             data = simulatedDataset,
             settings = smoothSettingsTmp$settings
@@ -110,6 +115,14 @@ runSimulation <- function(
             p             = plogis(validationDataset$riskLinearPredictor),
             modelBasedFit = modelBasedHte
           )
+        } else if (smoothType == "adaptive") {
+         predictedBenefit <- fitAdaptiveApproach(
+           trainingDataset   = simulatedDataset,
+           validationDataset = validationDataset,
+           nonLinearSettings = smoothSettingsTmp$settings$nonLinearSettings,
+           linearSettings    = smoothSettingsTmp$settings$linearSettings,
+           constantSettings  = smoothSettingsTmp$settings$constantSettings
+         )
         } else {
           predictedBenefit <- SmoothHte::predictSmoothBenefit(
             p               = plogis(validationDataset$riskLinearPredictor),
@@ -151,33 +164,6 @@ runSimulation <- function(
           data             = validationDataset[selectedRows, ],
           predictedBenefit = predictedBenefit[selectedRows]
         )
-      }
-
-      if (includeAdaptive) {
-        smoothLabels <- c(smoothLabels, "adaptive")
-        nonLinearFit <- rms::lrm(
-          outcome ~ treatment + rms::rcs(riskLinearPredictor, 3) + treatment * rms::rcs(riskLinearPredictor, 3),
-          data = simulatedDataset
-        )
-        linearFit <- rms::lrm(
-          outcome ~ treatment + riskLinearPredictor + treatment * riskLinearPredictor,
-          data = simulatedDataset
-        )
-        constantFit <- rms::lrm(
-          outcome ~ treatment + riskLinearPredictor,
-          data = simulatedDataset
-        )
-        testResult      <- rms::lrtest(nonLinearFit, linearFit)
-        pValueNonLinear <- testResult$stats[["P"]]
-        testResult      <- rms::lrtest(linearFit, constantFit)
-        pValueConstant  <- testResult$stats[["P"]]
-
-        adaptiveMethod <- case_when(
-          pValueNonLinear < .05                          ~ "nonLinear",
-          pValueNonLinear >= .05 & pValueConstant < .05  ~ "linear",
-          pValueNonLinear >= .05 & pValueConstant >= .05 ~ "constant"
-        )
-
       }
       names(pehe)  <- names(discrimination) <- names(calibration) <- smoothLabels
       list(
