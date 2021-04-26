@@ -116,13 +116,11 @@ runSimulation <- function(
             modelBasedFit = modelBasedHte
           )
         } else if (smoothType == "adaptive") {
-         predictedBenefit <- fitAdaptiveApproach(
-           trainingDataset   = simulatedDataset,
-           validationDataset = validationDataset,
-           nonLinearSettings = smoothSettingsTmp$settings$nonLinearSettings,
-           linearSettings    = smoothSettingsTmp$settings$linearSettings,
-           constantSettings  = smoothSettingsTmp$settings$constantSettings
-         )
+          evaluationData <- fitAdaptiveApproach(
+            trainingDataset = simulatedDataset,
+            validationDataset = validationDataset,
+            criterion = "aic"
+          )
         } else {
           predictedBenefit <- SmoothHte::predictSmoothBenefit(
             p               = plogis(validationDataset$riskLinearPredictor),
@@ -131,22 +129,33 @@ runSimulation <- function(
           )
         }
 
-        nas <- sum(is.na(predictedBenefit))
-        if (nas > 0) {
-          ParallelLogger::logWarn(
-            paste(
-              "There were", nas,
-              "NAs produced for seed:", seed
+        if (smoothType != "adaptive") {
+          nas <- sum(is.na(predictedBenefit))
+          if (nas > 0) {
+            ParallelLogger::logWarn(
+              paste(
+                "There were", nas,
+                "NAs produced for seed:", seed
+              )
             )
-          )
-          selectedRows[which(is.na(predictedBenefit))] <- FALSE
-        }
+            selectedRows[which(is.na(predictedBenefit))] <- FALSE
+          }
 
-        evaluationData <- data.frame(
-          predictedBenefit = predictedBenefit[selectedRows],
-          outcome          = validationDataset[selectedRows, ]$outcome,
-          treatment        = validationDataset[selectedRows, ]$treatment
-        )
+          evaluationData <- dplyr::tibble(
+            predictedBenefit = predictedBenefit[selectedRows],
+            outcome          = validationDataset[selectedRows, ]$outcome,
+            treatment        = validationDataset[selectedRows, ]$treatment
+          )
+          pehe[[i]] <- SimulateHte::calculatePEHE(
+            data             = validationDataset[selectedRows, ],
+            predictedBenefit = predictedBenefit[selectedRows]
+          )
+        } else {
+          pehe[[i]] <- SimulateHte::calculatePEHE(
+            data = evaluationData,
+            predictedBenefit = evaluationData$predictedBenefit
+          )
+        }
 
         discrimination[[i]] <- SmoothHte::calculateCForBenefit(
           data   = evaluationData,
@@ -157,13 +166,7 @@ runSimulation <- function(
           data   = evaluationData,
           method = "rank"
         )
-
         calibration[[i]] <- tmp$ici
-
-        pehe[[i]] <- SimulateHte::calculatePEHE(
-          data             = validationDataset[selectedRows, ],
-          predictedBenefit = predictedBenefit[selectedRows]
-        )
       }
       names(pehe)  <- names(discrimination) <- names(calibration) <- smoothLabels
       list(

@@ -1,140 +1,107 @@
-# library(SimulationEvaluationHte)
-# library(SmoothHte)
-# library(SimulateHte)
-# library(tidyverse)
-#
-# databaseSettings <- createDatabaseSettings(
-#   numberOfObservations = 1e3,
-#   numberOfCovariates = 4,
-#   covariateDistributionSettings = list(
-#     createNormalDistributionSettings(),
-#     createNormalDistributionSettings(),
-#     createNormalDistributionSettings(),
-#     createNormalDistributionSettings()
-#   )
-# )
-#
-# baselineRiskSettings <- createBaselineRiskSettings(
-#   type = "binary",
-#   modelSettings = createModelSettings(
-#     constant = -1.5,
-#     modelMatrix = diag(4),
-#     transformationSettings = list(
-#       identity,
-#       identity,
-#       identity,
-#       identity
-#     ),
-#     coefficients = rep(.2, 4)
-#   )
-# )
-#
-# propensitySettings <- createPropensitySettings(
-#   type = "binary",
-#   modelSettings = createModelSettings(
-#     constant = 0,
-#     modelMatrix = diag(0)
-#   )
-# )
-#
-# treatmentEffectSettings <- createTreatmentEffectSettings(
-#   type = "lp",
-#   modelSettings = createModelSettings(
-#     constant = -0.5108256
-#   )
-# )
-#
-# simulationSettings <- list(
-#   databaseSettings = databaseSettings,
-#   propensitySettings = propensitySettings,
-#   baselineRiskSettings = baselineRiskSettings,
-#   treatmentEffectSettings = treatmentEffectSettings
-# )
-#
-# analysisSettings <- createAnalysisSettings(
-#   threads = 4,
-#   replications = 1000,
-#   validationSize = 2e5,
-#   analysisId  = "analysis",
-#   description = "description",
-#   saveDirectory = "~/Documents/Projects/arekkas_HteSimulation_XXXX_2021/.scratch/testResults"
-# )
-#
-# predictionSettings <- createPredictionSettings(
-#   args = list(
-#     formula = "outcome ~ x1 + x2 + x3 + x4 + treatment",
-#     family = "binomial"
-#   ),
-#   fun = "glm"
-# )
-#
-# smoothSettings <- list(
-#   loess = createSmoothSettings(
-#     type = "loess",
-#     settings = SmoothHte::createLoessSettings(),
-#     label = "loess"
-#   ),
-#   rcs = createSmoothSettings(
-#     type = "rcs",
-#     settings = SmoothHte::createRcsSettings(),
-#     label = "rcs"
-#   ),
-#   locfit = createSmoothSettings(
-#     type = "locfit",
-#     settings = SmoothHte::createLocfitSettings(),
-#     label = "locfit"
-#   ),
-#   stratified = createSmoothSettings(
-#     type = "stratified",
-#     settings = SmoothHte::createStratifiedSettings(),
-#     label = "stratified"
-#   )
-# )
-#
-# res <- runAnalysis(
-#   analysisSettings = analysisSettings,
-#   simulationSettings = simulationSettings,
-#   predictionSettings = predictionSettings,
-#   smoothSettings = smoothSettings
-# )
-#
-# evaluation <- res$evaluation
-# evaluation$rmse %>%
-#   reshape2::melt() %>%
-#   ggplot2::ggplot(
-#     ggplot2::aes(x = variable, y = value, fill = variable)
-#   ) +
-#   ggplot2::geom_boxplot() +
-#   ggplot2::scale_fill_manual(
-#     breaks = c("loess", "rcs", "locfit", "stratified"),
-#     values = c("#66c2a5", "#fc8d62", "#8da0cb", "#e78ac3")
-#   ) +
-#   ggplot2::theme_bw()
-#
-# f <- function(
-#   x, a, b, c
-# ) {
-#   ret <- b * x^2 + (a + 1) * x + c
-#   return(ret)
-# }
-#
-# l <- function(
-#   x, a, c
-# ) {
-#   ret <- (a + 1) * x + c
-#   return(ret)
-# }
-#
-# ggplot(
-#   data = data.frame(x = c(-5, 5)),
-#   aes(x = x)
-# ) +
-#   stat_function(
-#     fun = f,
-#     args = list(a = 0, b = -.2, c = log(.5))
-#   ) +
-#   stat_function(
-#     fun = l,
-#     args = list(a = 0, c = log(.5)),
-#     color = "red"
-#   )
+#' @export
+fitAdaptiveApproach <- function(
+  trainingDataset,
+  validationDataset,
+  criterion = "aic"
+) {
+
+  untreatedData     <- trainingDataset %>% dplyr::filter(treatment == 0)
+  treatedData       <- trainingDataset %>% dplyr::filter(treatment == 1)
+
+  modelsUntreated   <- createFittedModels(untreatedData)
+  modelUntreated    <- selectModel(modelsUntreated, criterion)
+
+  modelsTreated     <- createFittedModels(treatedData)
+  modelTreated      <- selectModel(modelsTreated, criterion)
+
+  evaluationData <- createEvaluationData(
+    data           = validationDataset,
+    modelUntreated = modelUntreated,
+    modelTreated   = modelTreated
+  )
+
+  return(evaluationData)
+}
+
+
+createFittedModels <- function(data) {
+  constant <- glm(
+    outcome ~ offset(riskLinearPredictor) - 1,
+    data = data,
+    family = "binomial"
+  )
+
+  linear <- glm(
+    outcome ~ riskLinearPredictor,
+    data = data,
+    family = "binomial"
+  )
+
+  rcs3 <- glm(
+    outcome ~ rms::rcs(riskLinearPredictor, 3),
+    data = data,
+    family = "binomial"
+  )
+
+
+  rcs4 <- glm(
+    outcome ~ rms::rcs(riskLinearPredictor, 4),
+    data = data,
+    family = "binomial"
+  )
+
+
+  rcs5 <- glm(
+    outcome ~ rms::rcs(riskLinearPredictor, 5),
+    data = data,
+    family = "binomial"
+  )
+
+  return(
+    list(
+      constant = constant,
+      linear   = linear,
+      rcs3     = rcs3,
+      rcs4     = rcs4,
+      rcs5     = rcs5
+    )
+  )
+}
+
+selectModel <- function(
+  models,
+  criterion = "aic"
+) {
+  crit <- Inf
+  for (i in seq_along(models)) {
+    tmpCrit <- broom::glance(models[[i]])[[toupper(criterion)]]
+    if (tmpCrit < crit) {
+      crit <- tmpCrit
+      model <- i
+    }
+
+  }
+  return(models[[model]])
+}
+
+createEvaluationData <- function(
+  data,
+  modelUntreated,
+  modelTreated
+) {
+  data %>%
+    dplyr::mutate(
+      untreatedLp = predict(
+        modelUntreated,
+        data
+      ),
+      treatedLp = predict(
+        modelTreated,
+        data
+      ),
+      predictedBenefit = plogis(untreatedLp) - plogis(treatedLp)
+    ) %>%
+    dplyr::select(-c("untreatedLp", "treatedLp")) %>%
+    return()
+}
+
