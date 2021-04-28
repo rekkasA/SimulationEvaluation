@@ -11,7 +11,7 @@ fitAdaptiveApproach <- function(
   modelsUntreated   <- createFittedModels(untreatedData)
   modelUntreated    <- selectModel(modelsUntreated, criterion)
 
-  modelsTreated     <- createFittedModels(treatedData)
+  modelsTreated     <- createFittedModels(treatedData, treatment = 1)
   modelTreated      <- selectModel(modelsTreated, criterion)
 
   evaluationData <- createEvaluationData(
@@ -24,12 +24,21 @@ fitAdaptiveApproach <- function(
 }
 
 
-createFittedModels <- function(data) {
-  constant <- glm(
-    outcome ~ offset(riskLinearPredictor) - 1,
-    data = data,
-    family = "binomial"
-  )
+createFittedModels <- function(data, treatment = 0) {
+
+  if (treatment == 0) {
+    constant <- glm(
+      outcome ~ offset(riskLinearPredictor) - 1,
+      data = data,
+      family = "binomial"
+    )
+  } else {
+    constant <- glm(
+      outcome ~ offset(riskLinearPredictor),
+      data = data,
+      family = "binomial"
+    )
+  }
 
   linear <- glm(
     outcome ~ riskLinearPredictor,
