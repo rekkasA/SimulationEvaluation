@@ -114,3 +114,63 @@ createEvaluationData <- function(
     return()
 }
 
+
+#' Calculate concordance
+#' @description
+#' Calculates the concordance based on the Cai's paper (ref)
+#'
+#' @param data        The evaluation data, containing columns
+#'                    'predictedBenefit', 'treatment' and 'outcome'
+#' @param limits      Limit the focused area
+#' @param quantiles   The number of quantiles to be considered
+#'
+#' @export
+concordanceCai <- function(
+  data,
+  limits    = c(0, .9),
+  quantiles = 100
+) {
+
+  x <- seq(
+    from       = limits[1],
+    to         = limits[2],
+    length.out = quantiles
+  )
+  quants <- quantile(
+    data$predictedBenefit,
+    x
+  )
+
+  observed <- rep(NA, length(quants))
+  for (i in seq_along(quants)) {
+
+    dataSubset <- data %>%
+      dplyr::filter(predictedBenefit >= quants[i])
+
+    observed[i] <- dataSubset %>%
+      dplyr::group_by(treatment) %>%
+      summarise(m = mean(outcome)) %>%
+      pull(m) %>%
+      diff()
+  }
+
+  observed    <- -observed*(1 - x)
+  tmpFun      <- approxfun(x, observed)
+  concordance <- tryCatch(
+    {
+      integrate(tmpFun, 0, .9)
+    },
+    error = function(e) {
+      e$message
+    }
+  )
+
+  return(
+    list(
+      concordance = concordance,
+      data        = dplyr::tibble(x, observed),
+      curve       = tmpFun
+    )
+  )
+
+}
