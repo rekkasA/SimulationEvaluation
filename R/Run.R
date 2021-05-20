@@ -63,99 +63,84 @@ runSimulation <- function(
       pehe <- calibration <- discrimination <- concordance <- list()
       for (i in seq_along(smoothLabels)) {
         selectedRows <- rep(TRUE, nrow(validationDataset))
-        smoothSettingsTmp <- smoothSettings[[i]]
-        smoothType <- smoothSettingsTmp$type
+        smoothSettingsTmp <- smoothSettings[[i]]$settings
+        smoothType <- class(smoothSettingsTmp)[2]
 
         if (smoothType == "loess") {
           s0 <- SmoothHte::fitLoessHte(
             data = simulatedDataset0,
-            settings = smoothSettingsTmp$settings
+            settings = smoothSettingsTmp
           )
           s1 <- SmoothHte::fitLoessHte(
             data = simulatedDataset1,
-            settings = smoothSettingsTmp$settings
+            settings = smoothSettingsTmp
           )
         } else if (smoothType == "rcs") {
-          s0 <- SmoothHte::fitRcsHte(
-            data = simulatedDataset0,
-            settings = smoothSettingsTmp$settings
-          )
-          s1 <- SmoothHte::fitRcsHte(
-            data = simulatedDataset1,
-            settings = smoothSettingsTmp$settings
+          smoothFit <- SmoothHte::fitRcsHte(
+            data = simulatedDataset,
+            settings = smoothSettingsTmp
           )
         } else if (smoothType == "locfit") {
-          s0 <- SmoothHte::fitLocfitHte(
-            data = simulatedDataset0,
-            settings = smoothSettingsTmp$settings
-          )
-          s1 <- SmoothHte::fitLocfitHte(
-            data = simulatedDataset1,
-            settings = smoothSettingsTmp$settings
+          smoothFit <- SmoothHte::fitLocfitHte(
+            data = simulatedDataset,
+            settings = smoothSettingsTmp
           )
         } else if (smoothType == "stratified") {
-          stratifiedHte <- SmoothHte::fitStratifiedHte(
+          smoothFit <- SmoothHte::fitStratifiedHte(
             data = simulatedDataset,
-            settings = smoothSettingsTmp$settings
+            settings = smoothSettingsTmp
           )
         } else if (smoothType == "modelBased") {
-          modelBasedHte <- SmoothHte::fitModelBasedHte(
+          smoothFit <- SmoothHte::fitModelBasedHte(
             data = simulatedDataset,
-            settings = smoothSettingsTmp$settings
+            settings = smoothSettingsTmp
+          )
+        } else if (smoothType == "adaptive") {
+          smoothFit <- SmoothHte::fitAdaptive(
+            data = simulatedDataset,
+            settings = smoothSettingsTmp
           )
         }
 
         if (smoothType == "stratified") {
           predictedBenefit <- SmoothHte::predictStratifiedBenefit(
             p             = plogis(validationDataset$riskLinearPredictor),
-            stratifiedHte = stratifiedHte
+            stratifiedHte = smoothFit
           )
-        } else if (smoothType == "modelBased") {
-          predictedBenefit <- SmoothHte::predictBenefitModelBasedHte(
-            p             = plogis(validationDataset$riskLinearPredictor),
-            modelBasedFit = modelBasedHte
-          )
-        } else if (smoothType == "adaptive") {
-          evaluationData <- fitAdaptiveApproach(
-            trainingDataset = simulatedDataset,
-            validationDataset = validationDataset,
-            criterion = "aic"
+        } else if (smoothType == "loess") {
+          predictedBenefit <- SmoothHte::predictBenefitLoess(
+            p  = plogis(validationDataset$riskLinearPredictor),
+            s0 = s0,
+            s1 = s1
           )
         } else {
           predictedBenefit <- SmoothHte::predictSmoothBenefit(
-            p               = plogis(validationDataset$riskLinearPredictor),
-            smoothControl   = s0,
-            smoothTreatment = s1
+            p         = plogis(validationDataset$riskLinearPredictor),
+            smoothFit = smoothFit
           )
         }
 
-        if (smoothType != "adaptive") {
-          nas <- sum(is.na(predictedBenefit))
-          if (nas > 0) {
-            ParallelLogger::logWarn(
-              paste(
-                "There were", nas,
-                "NAs produced for seed:", seed
-              )
+        nas <- sum(is.na(predictedBenefit))
+        if (nas > 0) {
+          ParallelLogger::logWarn(
+            paste(
+              "There were", nas,
+              "NAs produced for seed:", seed
             )
-            selectedRows[which(is.na(predictedBenefit))] <- FALSE
-          }
-
-          evaluationData <- dplyr::tibble(
-            predictedBenefit = predictedBenefit[selectedRows],
-            outcome          = validationDataset[selectedRows, ]$outcome,
-            treatment        = validationDataset[selectedRows, ]$treatment
           )
-          pehe[[i]] <- SimulateHte::calculatePEHE(
-            data             = validationDataset[selectedRows, ],
-            predictedBenefit = predictedBenefit[selectedRows]
-          )
-        } else {
-          pehe[[i]] <- SimulateHte::calculatePEHE(
-            data = evaluationData,
-            predictedBenefit = evaluationData$predictedBenefit
-          )
+          selectedRows[which(is.na(predictedBenefit))] <- FALSE
         }
+
+        evaluationData <- dplyr::tibble(
+          predictedBenefit = predictedBenefit[selectedRows],
+          outcome          = validationDataset[selectedRows, ]$outcome,
+          treatment        = validationDataset[selectedRows, ]$treatment
+        )
+        pehe[[i]] <- SimulateHte::calculatePEHE(
+          data             = validationDataset[selectedRows, ],
+          predictedBenefit = predictedBenefit[selectedRows]
+        )
+
 
         tmp <- concordanceCai(evaluationData)
         concordance[i] <- tmp$concordance$value
