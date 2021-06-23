@@ -146,13 +146,11 @@ runSimulation <- function(
         concordance[i] <- tmp$concordance$value
 
         discrimination[[i]] <- SmoothHte::calculateCForBenefit(
-          data   = evaluationData,
-          method = "rank"
+          data = evaluationData
         )
 
         tmp <- SmoothHte::calculateCalibrationForBenefit(
-          data   = evaluationData,
-          method = "rank"
+          data = evaluationData
         )
         calibration[[i]] <- tmp$ici
       }
