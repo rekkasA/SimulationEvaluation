@@ -60,7 +60,7 @@ runSimulation <- function(
       simulatedDataset1 <- simulatedDataset %>%
         dplyr::filter(treatment == 1)
 
-      pehe <- calibration <- discrimination <- concordance <- list()
+      pehe <- calibration <- discrimination <- list()
       for (i in seq_along(smoothLabels)) {
         selectedRows <- rep(TRUE, nrow(validationDataset))
         smoothSettingsTmp <- smoothSettings[[i]]$settings
@@ -142,9 +142,6 @@ runSimulation <- function(
         )
 
 
-        tmp <- concordanceCai(evaluationData)
-        concordance[i] <- tmp$concordance$value
-
         discrimination[[i]] <- SmoothHte::calculateCForBenefit(
           data = evaluationData
         )
@@ -154,12 +151,11 @@ runSimulation <- function(
         )
         calibration[[i]] <- tmp$ici
       }
-      names(pehe) <- names(discrimination) <- names(calibration) <- names(concordance) <- smoothLabels
+      names(pehe) <- names(discrimination) <- names(calibration) <- smoothLabels
       list(
         pehe           = pehe,
         discrimination = discrimination,
-        calibration    = calibration,
-        concordance    = concordance
+        calibration    = calibration
       )
     },
     error = function(e) {
@@ -266,8 +262,7 @@ runAnalysis <- function(
   names(evaluation) <- c(
     "rmse",
     "discrimination",
-    "calibration",
-    "concordance"
+    "calibration"
   )
 
   settings <- list(
