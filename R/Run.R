@@ -61,6 +61,8 @@ runSimulation <- function(
         dplyr::filter(treatment == 1)
 
       pehe <- calibration <- discrimination <- list()
+      selectedAdaptiveModel <- NULL
+
       for (i in seq_along(smoothLabels)) {
         selectedRows <- rep(TRUE, nrow(validationDataset))
         smoothSettingsTmp <- smoothSettings[[i]]$settings
@@ -100,6 +102,7 @@ runSimulation <- function(
             data = simulatedDataset,
             settings = smoothSettingsTmp
           )
+          selectedAdaptiveModel <- attr(smoothFit, "type")
         }
 
         if (smoothType == "stratified") {
@@ -153,9 +156,10 @@ runSimulation <- function(
       }
       names(pehe) <- names(discrimination) <- names(calibration) <- smoothLabels
       list(
-        pehe           = pehe,
-        discrimination = discrimination,
-        calibration    = calibration
+        pehe                  = pehe,
+        discrimination        = discrimination,
+        calibration           = calibration,
+        selectedAdaptiveModel = selectedAdaptiveModel
       )
     },
     error = function(e) {
@@ -262,7 +266,8 @@ runAnalysis <- function(
   names(evaluation) <- c(
     "rmse",
     "discrimination",
-    "calibration"
+    "calibration",
+    "adaptiveModel"
   )
 
   settings <- list(
