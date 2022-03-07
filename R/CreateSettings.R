@@ -3,16 +3,26 @@
 #' @description
 #' Create the settings for the development of the internal prediction model.
 #'
-#' @param fun      The name of the function to be called for developing the
-#'                 prediction model
-#' @param args     A list containing the arguments to be passed on to the
-#'                 function
+#' @param fun                The name of the function to be called for developing the
+#'                           Prediction model.
+#' @param args               A list containing the arguments to be passed on to the
+#'                           Function.
+#' @param .before            A function of the data for runnning preprocessing
+#'                           Operations.
+#' @param .beforeSettings    A list of settings for `.before` function
+#' @param .after             A function of the data for runnning post-processing
+#'                           operations.
+#' @param .beforeSettings    A list of settings for `.after` function.
 #'
 #' @export
 
 createPredictionSettings <- function(
   args,
   fun
+  .before = NULL,
+  .beforeSettings = NULL,
+  .after = NULL,
+  .afterSettings = NULL
 ) {
   analysis <- list()
   for (name in names(formals(createPredictionSettings))) {

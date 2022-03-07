@@ -5,6 +5,7 @@ runSimulation <- function(
   seed,
   simulationSettings,
   predictionSettings,
+  propensityScoreSettings,
   smoothSettings,
   validationDataset,
   includeAdaptive
@@ -33,7 +34,35 @@ runSimulation <- function(
         treatmentEffectSettings = simulationSettings$treatmentEffectSettings
       )
 
-      predictionSettings$args$data <- simulatedDataset
+      if (!is.null(propensityScoreSettings)) {
+        propensityScoreSettings$args$data <- simulatedDataset
+        propensityScoreModel <- do.call(
+          eval(parse(text = propensityScoreSettings$fun)),
+          propensityScoreSettings$args
+        )
+        simulatedDataset <- simulatedDataset %>%
+          dplyr::mutate(
+            propensityScore = predict(
+              propensityScoreModel,
+              newdata = simulatedDataset,
+              type = "response"
+            )
+          )
+      }
+      # --------------------------------------------------
+      # PRE-PROCESSING
+      # TODO: Need to implement post-processing for
+      #       the case of prediction models
+      # --------------------------------------------------
+      if (!is.null(predictionSettings[[".before"]])) {
+        .before <- predictionSettings[[".before"]]
+        .beforeSettings <- predictionSettings[[".beforeSettings"]]
+        .beforeSettings[["data"]] <- simulatedDataset
+        predictionSettings$args$data <- do.call(
+          what = eval(parse(text = .before)),
+          args = .beforeSettings
+        )
+      }
       predictionModel <- do.call(
         eval(parse(text = predictionSettings$fun)),
         predictionSettings$args
@@ -54,15 +83,31 @@ runSimulation <- function(
               dplyr::mutate(treatment = 0)
           )
         )
-
+      # --------------------------------------------------
+      # POST-PROCESSING
+      # TODO:
+      #   - Need to implement pre-processing for
+      #     the case of PS models
+      #   - Throw warning when dimensions of input
+      #     and output data frames differ
+      # --------------------------------------------------
+      if (!is.null(propensityScoreSettings[[".after"]])) {
+        .after <- propensityScoreSettings[[".after"]]
+        .afterSettings = propensityScoreSettings[[".afterSettings"]]
+        .afterSettings[["data"]] <- simulatedDataset
+        simulatedDataset <- do.call(
+          what = eval(
+            parse(text = .after)
+          )
+          args = .afterSettings
+        )
+      }
       simulatedDataset0 <- simulatedDataset %>%
         dplyr::filter(treatment == 0)
       simulatedDataset1 <- simulatedDataset %>%
         dplyr::filter(treatment == 1)
-
       pehe <- calibration <- discrimination <- list()
       selectedAdaptiveModel <- NULL
-
       for (i in seq_along(smoothLabels)) {
         selectedRows <- rep(TRUE, nrow(validationDataset))
         smoothSettingsTmp <- smoothSettings[[i]]$settings
@@ -182,6 +227,7 @@ runAnalysis <- function(
   analysisSettings,
   simulationSettings,
   predictionSettings,
+  propensityScoreSettings,
   smoothSettings,
   includeAdaptive = TRUE
 ) {
@@ -245,14 +291,15 @@ runAnalysis <- function(
   cl <- ParallelLogger::makeCluster(analysisSettings$threads)
   ParallelLogger::clusterRequire(cl, "dplyr")
   res <- ParallelLogger::clusterApply(
-    x                  = x,
-    cl                 = cl,
-    fun                = runSimulation,
-    simulationSettings = simulationSettings,
-    predictionSettings = predictionSettings,
-    smoothSettings     = smoothSettings,
-    validationDataset  = validationDataset,
-    includeAdaptive    = includeAdaptive
+    x                       = x,
+    cl                      = cl,
+    fun                     = runSimulation,
+    simulationSettings      = simulationSettings,
+    predictionSettings      = predictionSettings,
+    propensityScoreSettings = propensittyScoreSettings,
+    smoothSettings          = smoothSettings,
+    validationDataset       = validationDataset,
+    includeAdaptive         = includeAdaptive
   )
   ParallelLogger::stopCluster(cl)
   ParallelLogger::logInfo("Done")
