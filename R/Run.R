@@ -33,7 +33,9 @@ runSimulation <- function(
         baselineRiskSettings    = simulationSettings$baselineRiskSettings,
         treatmentEffectSettings = simulationSettings$treatmentEffectSettings
       )
-
+      # --------------------------------------------------
+      #              --- Propensity scores --- 
+      # --------------------------------------------------
       if (!is.null(propensityScoreSettings)) {
         propensityScoreSettings$args$data <- simulatedDataset
         propensityScoreModel <- do.call(
@@ -50,6 +52,25 @@ runSimulation <- function(
           )
       }
       # --------------------------------------------------
+      # POST-PROCESSING
+      # TODO:
+      #   - Need to implement pre-processing for
+      #     the case of PS models
+      #   - Throw warning when dimensions of input
+      #     and output data frames differ
+      # --------------------------------------------------
+      if (!is.null(propensityScoreSettings[[".after"]])) {
+        .after <- propensityScoreSettings[[".after"]]
+        .afterSettings = propensityScoreSettings[[".afterSettings"]]
+        .afterSettings[["data"]] <- simulatedDataset
+        simulatedDataset <- do.call(
+          what = eval(expr = .after),
+          args = .afterSettings
+        )
+      }
+      # --------------------------------------------------
+      #             --- Prediction model --- 
+      # --------------------------------------------------
       # PRE-PROCESSING
       # TODO: Need to implement post-processing for
       #       the case of prediction models
@@ -57,9 +78,12 @@ runSimulation <- function(
       if (!is.null(predictionSettings[[".before"]])) {
         .before <- predictionSettings[[".before"]]
         .beforeSettings <- predictionSettings[[".beforeSettings"]]
-        .beforeSettings[["data"]] <- simulatedDataset
+        # ------------------------------------------------
+        # THIS CANNOT STAY "population" !!!!
+        # ------------------------------------------------
+        .beforeSettings[["population"]] <- simulatedDataset
         predictionSettings$args$data <- do.call(
-          what = eval(parse(text = .before)),
+          what = eval(expr = .before),
           args = .beforeSettings
         )
       }
@@ -83,25 +107,6 @@ runSimulation <- function(
               dplyr::mutate(treatment = 0)
           )
         )
-      # --------------------------------------------------
-      # POST-PROCESSING
-      # TODO:
-      #   - Need to implement pre-processing for
-      #     the case of PS models
-      #   - Throw warning when dimensions of input
-      #     and output data frames differ
-      # --------------------------------------------------
-      if (!is.null(propensityScoreSettings[[".after"]])) {
-        .after <- propensityScoreSettings[[".after"]]
-        .afterSettings = propensityScoreSettings[[".afterSettings"]]
-        .afterSettings[["data"]] <- simulatedDataset
-        simulatedDataset <- do.call(
-          what = eval(
-            parse(text = .after)
-          )
-          args = .afterSettings
-        )
-      }
       simulatedDataset0 <- simulatedDataset %>%
         dplyr::filter(treatment == 0)
       simulatedDataset1 <- simulatedDataset %>%
@@ -296,7 +301,7 @@ runAnalysis <- function(
     fun                     = runSimulation,
     simulationSettings      = simulationSettings,
     predictionSettings      = predictionSettings,
-    propensityScoreSettings = propensittyScoreSettings,
+    propensityScoreSettings = propensityScoreSettings,
     smoothSettings          = smoothSettings,
     validationDataset       = validationDataset,
     includeAdaptive         = includeAdaptive

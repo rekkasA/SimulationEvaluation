@@ -4,14 +4,29 @@
 \alias{createPredictionSettings}
 \title{Create the prediction settings of the simulation}
 \usage{
-createPredictionSettings(args, fun)
+createPredictionSettings(
+  args,
+  fun,
+  .before = NULL,
+  .beforeSettings = NULL,
+  .after = NULL,
+  .afterSettings = NULL
+)
 }
 \arguments{
 \item{args}{A list containing the arguments to be passed on to the
-function}
+Function.}
 
 \item{fun}{The name of the function to be called for developing the
-prediction model}
+Prediction model.}
+
+\item{.before}{A function of the data for runnning preprocessing
+Operations.}
+
+\item{.beforeSettings}{A list of settings for \code{.after} function.}
+
+\item{.after}{A function of the data for runnning post-processing
+operations.}
 }
 \description{
 Create the settings for the development of the internal prediction model.

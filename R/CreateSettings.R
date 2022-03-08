@@ -18,7 +18,7 @@
 
 createPredictionSettings <- function(
   args,
-  fun
+  fun,
   .before = NULL,
   .beforeSettings = NULL,
   .after = NULL,
